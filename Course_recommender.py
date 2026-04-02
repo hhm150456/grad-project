@@ -1,0 +1,195 @@
+"""
+course_recommender.recommender
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Recommends courses from a PostgreSQL database based on a list of skills.
+
+Scoring formula (per course):
+    score = (matching_skills / total_requested_skills) * 0.70
+          + (rating / 5.0)                             * 0.30
+
+Usage
+-----
+    from course_recommender import CourseRecommender
+
+    rec = CourseRecommender(dsn="postgresql://user:pass@localhost/courses_db")
+    results = rec.recommend(skills=["python", "fastapi"], top_n=5)
+    for course in results:
+        print(course)
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from typing import List, Optional
+
+import psycopg2
+import psycopg2.extras
+
+
+# ---------------------------------------------------------------------------
+# Data class
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Course:
+    id: int
+    title: str
+    description: str
+    skills: List[str]
+    rating: float
+    level: str
+    duration_hours: int
+    instructor: str
+    match_score: float
+
+    def __str__(self) -> str:
+        bar_width = 20
+        filled = round(self.match_score * bar_width)
+        bar = "█" * filled + "░" * (bar_width - filled)
+        pct = round(self.match_score * 100)
+        return (
+            f"[{pct:3d}%] {bar}  ★ {self.rating:.1f}  "
+            f"{self.level:<14}  {self.duration_hours:3d}h  "
+            f"{self.title}  (by {self.instructor})"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Recommender
+# ---------------------------------------------------------------------------
+
+class CourseRecommender:
+    """
+    Recommends courses stored in a PostgreSQL ``courses`` table.
+
+    Parameters
+    ----------
+    dsn:
+        libpq connection string, e.g.
+        ``"postgresql://user:pass@localhost:5432/courses_db"``.
+        Falls back to the ``DATABASE_URL`` environment variable if omitted.
+    """
+
+    _QUERY = """
+        SELECT
+            Title,
+            Skills,
+            Rating::float,
+            level,
+            ROUND(
+                (
+                    (
+                        CARDINALITY(
+                            ARRAY(
+                                SELECT UNNEST(skills::text[])
+                                INTERSECT
+                                SELECT UNNEST(%(skills)s::text[])
+                            )
+                        )::float / %(n_skills)s
+                    ) * 0.70
+                    + (rating::float / 5.0) * 0.30
+                )::numeric,
+                4
+            ) AS match_score
+        FROM courses
+        WHERE skills && %(skills)s::text[]
+        ORDER BY match_score DESC, rating DESC
+        LIMIT %(top_n)s;
+    """
+
+    def __init__(self, dsn: Optional[str] = None) -> None:
+        self._dsn = dsn or os.environ.get("DATABASE_URL")
+        if not self._dsn:
+            raise ValueError(
+                "Provide a DSN or set the DATABASE_URL environment variable."
+            )
+        self._conn: Optional[psycopg2.extensions.connection] = None
+
+    # ------------------------------------------------------------------
+    # Connection management
+    # ------------------------------------------------------------------
+
+    def connect(self) -> "CourseRecommender":
+        """Open the database connection. Called automatically on first use."""
+        if self._conn is None or self._conn.closed:
+            self._conn = psycopg2.connect(self._dsn)
+        return self
+
+    def close(self) -> None:
+        """Close the database connection."""
+        if self._conn and not self._conn.closed:
+            self._conn.close()
+
+    def __enter__(self) -> "CourseRecommender":
+        return self.connect()
+
+    def __exit__(self, *_) -> None:
+        self.close()
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def recommend(
+        self,
+        skills: List[str],
+        top_n: int = 6,
+    ) -> List[Course]:
+        """
+        Return the top *top_n* courses that best match *skills*.
+
+        Parameters
+        ----------
+        skills:
+            List of skill strings, e.g. ``["python", "fastapi"]``.
+            Matching is case-insensitive.
+        top_n:
+            Maximum number of courses to return (default 6).
+
+        Returns
+        -------
+        List[Course]
+            Courses sorted by ``match_score`` descending, then by
+            ``rating`` descending.  Empty list if no courses match.
+
+        Raises
+        ------
+        ValueError
+            If *skills* is empty.
+        psycopg2.Error
+            On any database error.
+        """
+        if not skills:
+            raise ValueError("Provide at least one skill.")
+
+        normalised = [s.strip().lower() for s in skills]
+        self.connect()
+
+        with self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                self._QUERY,
+                {
+                    "skills": normalised,
+                    "n_skills": len(normalised),
+                    "top_n": top_n,
+                },
+            )
+            rows = cur.fetchall()
+
+        return [
+            Course(
+                id=row["id"],
+                title=row["title"],
+                description=row["description"],
+                skills=list(row["skills"]),
+                rating=float(row["rating"]),
+                level=row["level"],
+                duration_hours=row["duration_hours"],
+                instructor=row["instructor"],
+                match_score=float(row["match_score"]),
+            )
+            for row in rows
+        ]
+
+
