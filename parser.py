@@ -307,8 +307,15 @@ def parse_work_experience(section_text: str) -> list[dict]:
         if not title:
             continue
 
-        loc_m    = re.search(r"\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?,\s*[A-Z]{2,3})\b", block_text)
-        location = loc_m.group() if loc_m else None
+        loc_m = re.search(r"\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?,\s*[A-Z]{2,3})\b", block_text)
+        if loc_m:
+            parts = [p.strip() for p in loc_m.group().split(",", 1)]
+            location = {
+                "city":    parts[0] if len(parts) > 0 else None,
+                "country": parts[1] if len(parts) > 1 else None,
+            }
+        else:
+            location = {"city": None, "country": None}
 
         highlights = [
             re.sub(r"^[•·▸▪\-\*➤➢●◆▶►]\s*", "", line).strip()
