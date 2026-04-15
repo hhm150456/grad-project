@@ -34,9 +34,10 @@ _APP_CONFIG = yaml.safe_load((_BASE_DIR / "config.yaml").read_text(encoding="utf
 _PROMPT_CONFIG = yaml.safe_load((_BASE_DIR / "prompt_config.yaml").read_text(encoding="utf-8")) or {}
 
 from parser import parse_cv
-from models import JobRequest, JobDocument, ParseTextRequest, ParsedCV, SkillGapRequest, SkillGapResponse, EnhanceRequest, EnhanceResponse 
-from embedding_service import generate_job_embedding
-from elastic_service import index_job
+from models import JobRequest, JobDocument, ParseTextRequest, ParsedCV, SkillGapRequest, SkillGapResponse, EnhanceRequest, EnhanceResponse, JobSeekerRequest, SeekerEmbeddingResponse, SeekerDocument, NormalizeRequest, NormalizeResponse, JobUpdateRequest, SearchQueryRequest, KNNSearchRequest, KNNSearchResponse, SeekerUpdateRequest
+from embedding_service import generate_job_embedding, generate_seeker_embedding, generate_query_embedding
+from elastic_service import index_job, index_seeker, delete_job, update_job, knn_search_jobs, delete_seeker, update_seeker
+from esco_service import normalize_job
 from Course_recommender import CourseRecommender
 
 # ── optional PDF support (install with: pip install pdfplumber) ──────────────
@@ -220,16 +221,18 @@ async def parse_file(file: UploadFile = File(...)):
 
 @app.post(
     "/add-job",
-    summary="Embed and index a job posting",
+    response_model=JobDocument,
+    summary="Generate an embedding for a job posting",
     tags=["Jobs"],
 )
 def add_job(job: JobRequest):
     """
-    Generate a vector embedding for a job posting and index it into Elasticsearch.
+    Generate a vector embedding for a job posting and return the enriched job document.
+    Use **/index-job** to persist it into Elasticsearch afterwards.
 
     ```json
     {
-      "job_id" : "123hhdu"
+      "job_id": "123hhdu",
       "job_title": "Data Engineer",
       "job_description": "...",
       "skills": ["Python", "Spark", "AWS"]
@@ -237,16 +240,276 @@ def add_job(job: JobRequest):
     ```
     """
     embedding = generate_job_embedding(job)
-    job_doc = JobDocument(
+    return JobDocument(
         job_id=job.job_id,
         job_title=job.job_title,
         job_description=job.job_description,
         skills=job.skills,
         embedding=embedding,
     )
-    index_job(job_doc)
-    return {"message": "Job indexed successfully"}
 
+
+@app.post(
+    "/index-job",
+    summary="Index a job document into Elasticsearch",
+    tags=["Jobs"],
+)
+def index_job_endpoint(job_doc: JobDocument):
+    """
+    Persist a **JobDocument** (including its embedding) into Elasticsearch.
+    Call **/add-job** first to obtain the document with the embedding, then
+    pass the result here to index it.
+
+    ```json
+    {
+      "job_id": "123hhdu",
+      "job_title": "Data Engineer",
+      "job_description": "...",
+      "skills": ["Python", "Spark", "AWS"],
+      "embedding": [0.12, 0.34, ...]
+    }
+    ```
+    """
+    index_job(job_doc)
+    return {"message": "Job indexed successfully", "job_id": job_doc.job_id}
+
+@app.delete(
+    "/delete-job/{job_id}",
+    summary="Delete a job from Elasticsearch by job ID",
+    tags=["Jobs"],
+)
+def delete_job_endpoint(job_id: str):
+    """
+    Permanently remove a job document from Elasticsearch using its **job_id**.
+
+    ```
+    DELETE /delete-job/123hhdu
+    ```
+    """
+    try:
+        return delete_job(job_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.patch(
+    "/update-job/{job_id}",
+    summary="Partially update a job in Elasticsearch by job ID",
+    tags=["Jobs"],
+)
+def update_job_endpoint(job_id: str, updates: JobUpdateRequest):
+    """
+    Partially update a job document in Elasticsearch.
+    Only the fields you provide are changed — omitted fields are left intact.
+
+    ```json
+    {
+      "job_title": "Senior Data Engineer",
+      "skills": ["Python", "Spark", "Kafka"]
+    }
+    ```
+    """
+    payload = updates.model_dump(exclude_none=True)
+    if not payload:
+        raise HTTPException(status_code=422, detail="No update fields provided.")
+    try:
+        return update_job(job_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post(
+    "/seeker-embedding",
+    response_model=SeekerEmbeddingResponse,
+    summary="Generate an embedding for a job seeker",
+    tags=["Jobs"],
+)
+def seeker_embedding(seeker: JobSeekerRequest):
+    """
+    Generate a vector embedding for a job seeker from their **title** and **skills**.
+
+    The embedding has the same dimensionality as a job embedding so it can be
+    used directly for cosine-similarity search against the jobs index.
+
+    ```json
+    {
+      "title": "Data Engineer",
+      "skills": ["Python", "Spark", "AWS"]
+    }
+    ```
+    """
+    embedding = generate_seeker_embedding(seeker)
+    return SeekerEmbeddingResponse(title=seeker.title, skills=seeker.skills, embedding=embedding)
+
+
+@app.post(
+    "/index-seeker",
+    summary="Index a job seeker document into Elasticsearch",
+    tags=["Jobs"],
+)
+def index_seeker_endpoint(seeker_doc: SeekerDocument):
+    """
+    Persist a **SeekerDocument** (including its embedding) into Elasticsearch.
+    Call **/seeker-embedding** first to obtain the document with the embedding,
+    then pass the result here — adding a **seeker_id** — to index it.
+
+    ```json
+    {
+      "seeker_id": "abc123",
+      "title": "Data Engineer",
+      "skills": ["Python", "Spark", "AWS"],
+      "embedding": [0.12, 0.34, ...]
+    }
+    ```
+    """
+    index_seeker(seeker_doc)
+    return {"message": "Job seeker indexed successfully", "seeker_id": seeker_doc.seeker_id}
+
+
+
+
+
+@app.delete(
+    "/delete-seeker/{seeker_id}",
+    summary="Delete a job seeker from Elasticsearch by seeker ID",
+    tags=["Jobs"],
+)
+def delete_seeker_endpoint(seeker_id: str):
+    """
+    Permanently remove a job seeker document from Elasticsearch using their **seeker_id**.
+
+    ```
+    DELETE /delete-seeker/abc123
+    ```
+    """
+    try:
+        return delete_seeker(seeker_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.patch(
+    "/update-seeker/{seeker_id}",
+    summary="Partially update a job seeker in Elasticsearch by seeker ID",
+    tags=["Jobs"],
+)
+def update_seeker_endpoint(seeker_id: str, updates: SeekerUpdateRequest):
+    """
+    Partially update a job seeker document in Elasticsearch.
+    Only the fields you provide are changed — omitted fields are left intact.
+
+    ```json
+    {
+      "title": "Senior Data Engineer",
+      "skills": ["Python", "Spark", "Kafka"]
+    }
+    ```
+    """
+    payload = updates.model_dump(exclude_none=True)
+    if not payload:
+        raise HTTPException(status_code=422, detail="No update fields provided.")
+    try:
+        return update_seeker(seeker_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post(
+    "/search-query",
+    summary="Embed a free-text search query, optionally blended with a seeker embedding",
+    tags=["Search"],
+)
+def search_query(body: SearchQueryRequest):
+    """
+    Accepts a plain-text search query and returns its vector embedding.
+
+    Optionally provide a **seeker_embedding** (from **/seeker-embedding**) to
+    produce a joint embedding that blends the query intent with the seeker's
+    profile via element-wise averaging — useful for personalised search.
+
+    ```json
+    {
+      "query": "machine learning engineer with Python experience",
+      "seeker_embedding": [0.12, 0.34, ...]
+    }
+    ```
+    """
+    query: str = body.query.strip()
+    if not query:
+        raise HTTPException(status_code=422, detail="'query' must not be empty.")
+
+    seeker_embedding = body.seeker_embedding
+
+    try:
+        embedding = generate_query_embedding(query, seeker_embedding=seeker_embedding)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    return {"query": query, "embedding": embedding}
+
+
+
+
+@app.post(
+    "/similarity",
+    response_model=KNNSearchResponse,
+    summary="ANN vector search — find the most similar jobs to a query embedding",
+    tags=["Search"],
+)
+def similarity(body: KNNSearchRequest):
+    """
+    Run an **Approximate Nearest Neighbour (kNN)** search against the jobs index
+    using the provided **query_embedding** (from **/search-query**).
+
+    Returns the top-**k** most similar jobs ranked by cosine similarity score.
+
+    - **k** — number of results to return (default 10)
+    - **num_candidates** — ANN candidate pool size; higher = more accurate but slower (default 100)
+
+    ```json
+    {
+      "query_embedding": [0.12, 0.34, ...],
+      "k": 10,
+      "num_candidates": 100
+    }
+    ```
+    """
+    try:
+        results = knn_search_jobs(
+            query_embedding=body.query_embedding,
+            k=body.k,
+            num_candidates=body.num_candidates,
+        )
+    except Exception as exc:
+        logging.exception("kNN search failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"kNN search failed: {exc}")
+
+    return KNNSearchResponse(total=len(results), results=results)
+
+@app.post(
+    "/normalize",
+    response_model=NormalizeResponse,
+    summary="Normalize a job title and skills against the ESCO dataset",
+    tags=["ESCO"],
+)
+def normalize(body: NormalizeRequest):
+    """
+    Fuzzy-match a raw job title and skills list against the ESCO dataset and
+    return the closest standardised label with a confidence score.
+
+    - **title_score** — fuzzy match score for the title alone (0–100)
+    - **confidence**  — weighted score: 60 % title + 40 % average skill score
+    - **matched_skills** — per-skill ESCO match details
+
+    ```json
+    {
+      "title": "Data Engineer",
+      "skills": ["Python", "Spark", "AWS"]
+    }
+    ```
+    """
+    result = normalize_job(body.title, body.skills)
+    return NormalizeResponse(**result)
 
 @app.post(
     "/skill-gap",
@@ -324,6 +587,7 @@ def recommend_courses(body: SkillGapRequest, top_n: int = 6):
 
 
 @app.post(
+    "/enhance",
     response_model=EnhanceResponse,
     summary="Enhance a resume to match a job description",
     tags=["CV Enhancer"],

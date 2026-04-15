@@ -73,16 +73,20 @@ class CourseRecommender:
 
     _QUERY = """
         SELECT
-            Title,
-            Skills,
-            Rating::float,
+            id,
+            title,
+            description,
+            string_to_array(skills, ',') AS skills,
+            rating::float,
             level,
+            content_duration AS duration_hours,
+            NULL::text AS instructor,
             ROUND(
                 (
                     (
                         CARDINALITY(
                             ARRAY(
-                                SELECT UNNEST(skills::text[])
+                                SELECT UNNEST(string_to_array(skills, ','))
                                 INTERSECT
                                 SELECT UNNEST(%(skills)s::text[])
                             )
@@ -93,7 +97,7 @@ class CourseRecommender:
                 4
             ) AS match_score
         FROM courses
-        WHERE skills && %(skills)s::text[]
+        WHERE string_to_array(skills, ',') && %(skills)s::text[]
         ORDER BY match_score DESC, rating DESC
         LIMIT %(top_n)s;
     """
@@ -114,6 +118,8 @@ class CourseRecommender:
         """Open the database connection. Called automatically on first use."""
         if self._conn is None or self._conn.closed:
             self._conn = psycopg2.connect(self._dsn)
+        elif self._conn.status == psycopg2.extensions.STATUS_IN_TRANSACTION:
+            self._conn.rollback()
         return self
 
     def close(self) -> None:
@@ -166,16 +172,20 @@ class CourseRecommender:
         normalised = [s.strip().lower() for s in skills]
         self.connect()
 
-        with self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                self._QUERY,
-                {
-                    "skills": normalised,
-                    "n_skills": len(normalised),
-                    "top_n": top_n,
-                },
-            )
-            rows = cur.fetchall()
+        try:
+            with self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    self._QUERY,
+                    {
+                        "skills": normalised,
+                        "n_skills": len(normalised),
+                        "top_n": top_n,
+                    },
+                )
+                rows = cur.fetchall()
+        except Exception:
+            self._conn.rollback()
+            raise
 
         return [
             Course(
@@ -185,11 +195,9 @@ class CourseRecommender:
                 skills=list(row["skills"]),
                 rating=float(row["rating"]),
                 level=row["level"],
-                duration_hours=row["duration_hours"],
-                instructor=row["instructor"],
+                duration_hours=int(row["duration_hours"] or 0),
+                instructor=row["instructor"] or "",
                 match_score=float(row["match_score"]),
             )
             for row in rows
         ]
-
-
