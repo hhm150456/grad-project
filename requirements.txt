@@ -1,0 +1,32 @@
+# ── Web framework ────────────────────────────────────────────────────────────
+fastapi
+uvicorn[standard]
+
+# ── Data validation ───────────────────────────────────────────────────────────
+pydantic
+
+# ── Embeddings ────────────────────────────────────────────────────────────────
+sentence-transformers
+numpy
+
+# ── Elasticsearch ─────────────────────────────────────────────────────────────
+elasticsearch
+
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+psycopg2-binary
+sqlalchemy
+
+# ── LLM / LangChain ──────────────────────────────────────────────────────────
+langchain-core
+langchain-openai
+openai
+
+# ── PDF parsing ───────────────────────────────────────────────────────────────
+pdfplumber
+
+# ── Config & env ──────────────────────────────────────────────────────────────
+python-dotenv
+pyyaml
+
+# ── Fuzzy matching (used by esco_service) ─────────────────────────────────────
+rapidfuzz
