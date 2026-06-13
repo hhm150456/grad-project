@@ -4,6 +4,7 @@ uvicorn[standard]
 
 # ── Data validation ───────────────────────────────────────────────────────────
 pydantic
+tqdm
 
 # ── Embeddings ────────────────────────────────────────────────────────────────
 sentence-transformers
@@ -27,6 +28,7 @@ pdfplumber
 # ── Config & env ──────────────────────────────────────────────────────────────
 python-dotenv
 pyyaml
+dotenv
 
 # ── Fuzzy matching (used by esco_service) ─────────────────────────────────────
 rapidfuzz
