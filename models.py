@@ -187,6 +187,66 @@ class KNNSearchResponse(BaseModel):
     results: list[KNNSearchResult]
 
 
+class BM25SearchRequest(BaseModel):
+    query: str
+    k: int = 10
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "query": "python data engineer remote",
+                "k": 10,
+            }
+        }
+    }
+
+
+class BM25SearchResult(BaseModel):
+    job_id: str
+    job_title: str
+    job_description: str
+    skills: list[str]
+    score: float
+
+
+class BM25SearchResponse(BaseModel):
+    total: int
+    results: list[BM25SearchResult]
+
+
+class HybridSearchRequest(BaseModel):
+    query: str
+    seeker_embedding: list[float] | None = None
+    k: int = 10
+    num_candidates: int = 100
+    rrf_k: int = 60
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "query": "python data engineer remote",
+                "k": 10,
+                "num_candidates": 100,
+            }
+        }
+    }
+
+
+class HybridSearchResult(BaseModel):
+    job_id: str
+    job_title: str
+    job_description: str
+    skills: list[str]
+    hybrid_score: float
+    bm25_score: float | None = None
+    embedding_score: float | None = None
+
+
+class HybridSearchResponse(BaseModel):
+    query: str
+    results: list[HybridSearchResult]
+
+
 class SeekerUpdateRequest(BaseModel):
     title: str | None = None
     skills: list[str] | None = None

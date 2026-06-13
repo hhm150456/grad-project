@@ -154,6 +154,100 @@ def knn_search_jobs(query_embedding: list, k: int = 10, num_candidates: int = 10
         })
     return results
 
+def bm25_search_jobs(query: str, k: int = 10) -> list:
+    """
+    Run a BM25 full-text search against the jobs index using the provided
+    query string. Searches job_title, job_description and skills fields.
+    """
+    response = es.search(
+        index=INDEX_NAME,
+        body={
+            "query": {
+                "multi_match": {
+                    "query": query,
+                    "fields": ["job_title^2", "job_description", "skills"],
+                }
+            },
+            "size": k,
+            "_source": ["job_id", "job_title", "job_description", "skills"],
+        },
+    )
+
+    results = []
+    for hit in response["hits"]["hits"]:
+        results.append({
+            "job_id":          hit["_source"]["job_id"],
+            "job_title":       hit["_source"]["job_title"],
+            "job_description": hit["_source"]["job_description"],
+            "skills":          hit["_source"]["skills"],
+            "score":           hit["_score"],
+        })
+    return results
+
+
+def hybrid_search_jobs(
+    query: str,
+    query_embedding: list,
+    k: int = 10,
+    num_candidates: int = 100,
+    rrf_k: int = 60,
+) -> list:
+    """
+    Combine BM25 full-text search and kNN vector search results using
+    Reciprocal Rank Fusion (RRF).
+
+    For each result, RRF score contribution from a ranked list is
+    1 / (rrf_k + rank), where rank is 1-based. Contributions from both
+    lists are summed to produce the final hybrid_score.
+
+    Returns a list of dicts containing job_id, job_title, job_description,
+    skills, hybrid_score, bm25_score and embedding_score (the latter two
+    are None if the job did not appear in that particular result list).
+    """
+    pool_size = max(k, num_candidates)
+    bm25_results = bm25_search_jobs(query, k=pool_size)
+    knn_results = knn_search_jobs(query_embedding, k=pool_size, num_candidates=num_candidates)
+
+    combined: dict[str, dict] = {}
+
+    def _get_entry(hit):
+        job_id = hit["job_id"]
+        return combined.setdefault(job_id, {
+            "job_id": job_id,
+            "job_title": hit["job_title"],
+            "job_description": hit["job_description"],
+            "skills": hit["skills"],
+            "bm25_score": None,
+            "embedding_score": None,
+            "rrf_score": 0.0,
+        })
+
+    for rank, hit in enumerate(bm25_results, start=1):
+        entry = _get_entry(hit)
+        entry["bm25_score"] = hit["score"]
+        entry["rrf_score"] += 1.0 / (rrf_k + rank)
+
+    for rank, hit in enumerate(knn_results, start=1):
+        entry = _get_entry(hit)
+        entry["embedding_score"] = hit["score"]
+        entry["rrf_score"] += 1.0 / (rrf_k + rank)
+
+    ranked = sorted(combined.values(), key=lambda e: e["rrf_score"], reverse=True)
+
+    results = []
+    for entry in ranked[:k]:
+        results.append({
+            "job_id":          entry["job_id"],
+            "job_title":       entry["job_title"],
+            "job_description": entry["job_description"],
+            "skills":          entry["skills"],
+            "hybrid_score":    entry["rrf_score"],
+            "bm25_score":      entry["bm25_score"],
+            "embedding_score": entry["embedding_score"],
+        })
+    return results
+
+
 def delete_seeker(seeker_id: str) -> dict:
     """
     Delete a job seeker document from Elasticsearch by seeker_id.

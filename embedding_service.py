@@ -23,7 +23,7 @@ def generate_seeker_embedding(seeker):
 
 def generate_query_embedding(
     query: str,
-    seeker_embedding: list,
+    seeker_embedding: list | None = None,
 ) -> list:
     """
     Generate an embedding for a free-text search query, with an optional
@@ -46,6 +46,9 @@ def generate_query_embedding(
     query_emb = jobbert.encode(query)
 
     query_vector = np.concatenate([title_pad, desc_pad, query_emb])
+
+    if seeker_embedding is None:
+        return query_vector.tolist()
 
     seeker_vector = np.array(seeker_embedding, dtype=np.float32)
     if seeker_vector.shape != query_vector.shape:

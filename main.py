@@ -34,9 +34,9 @@ _APP_CONFIG = yaml.safe_load((_BASE_DIR / "config.yaml").read_text(encoding="utf
 _PROMPT_CONFIG = yaml.safe_load((_BASE_DIR / "prompt_config.yaml").read_text(encoding="utf-8")) or {}
 
 from parser import parse_cv
-from models import JobRequest, JobDocument, ParseTextRequest, ParsedCV, SkillGapRequest, SkillGapResponse, EnhanceRequest, EnhanceResponse, JobSeekerRequest, SeekerEmbeddingResponse, SeekerDocument, NormalizeRequest, NormalizeResponse, JobUpdateRequest, SearchQueryRequest, KNNSearchRequest, KNNSearchResponse, SeekerUpdateRequest
+from models import JobRequest, JobDocument, ParseTextRequest, ParsedCV, SkillGapRequest, SkillGapResponse, EnhanceRequest, EnhanceResponse, JobSeekerRequest, SeekerEmbeddingResponse, SeekerDocument, NormalizeRequest, NormalizeResponse, JobUpdateRequest, SearchQueryRequest, KNNSearchRequest, KNNSearchResponse, SeekerUpdateRequest, BM25SearchRequest, BM25SearchResponse, HybridSearchRequest, HybridSearchResponse
 from embedding_service import generate_job_embedding, generate_seeker_embedding, generate_query_embedding
-from elastic_service import index_job, index_seeker, delete_job, update_job, knn_search_jobs, delete_seeker, update_seeker
+from elastic_service import index_job, index_seeker, delete_job, update_job, knn_search_jobs, bm25_search_jobs, hybrid_search_jobs, delete_seeker, update_seeker
 from esco_service import normalize_job
 from Course_recommender import CourseRecommender
 
@@ -485,6 +485,105 @@ def similarity(body: KNNSearchRequest):
         raise HTTPException(status_code=502, detail=f"kNN search failed: {exc}")
 
     return KNNSearchResponse(total=len(results), results=results)
+
+
+@app.post(
+    "/bm25-search",
+    response_model=BM25SearchResponse,
+    summary="BM25 full-text search over jobs",
+    tags=["Search"],
+)
+def bm25_search(body: BM25SearchRequest):
+    """
+    Run a **BM25** keyword search against the jobs index, matching the
+    query text against `job_title`, `job_description` and `skills`.
+
+    ```json
+    {
+      "query": "python data engineer remote",
+      "k": 10
+    }
+    ```
+    """
+    query = body.query.strip()
+    if not query:
+        raise HTTPException(status_code=422, detail="'query' must not be empty.")
+
+    try:
+        results = bm25_search_jobs(query=query, k=body.k)
+    except Exception as exc:
+        logging.exception("BM25 search failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"BM25 search failed: {exc}")
+
+    return BM25SearchResponse(total=len(results), results=results)
+
+
+@app.post(
+    "/hybrid-search",
+    response_model=HybridSearchResponse,
+    summary="Hybrid search — BM25 + vector kNN merged via Reciprocal Rank Fusion",
+    tags=["Search"],
+)
+def hybrid_search(body: HybridSearchRequest):
+    """
+    Runs a **BM25** keyword search and a **vector kNN** search in parallel and
+    merges the two ranked lists using **Reciprocal Rank Fusion (RRF)**.
+
+    The query embedding is generated server-side from the `query` text
+    (and optionally blended with `seeker_embedding` for personalisation).
+
+    - **k** — number of merged results to return (default 10)
+    - **num_candidates** — ANN candidate pool size for the vector search (default 100)
+    - **rrf_k** — RRF smoothing constant (default 60)
+
+    ```json
+    {
+      "query": "python data engineer remote",
+      "k": 10
+    }
+    ```
+
+    Response:
+    ```json
+    {
+      "query": "python data engineer remote",
+      "results": [
+        {
+          "job_id": "123",
+          "job_title": "Senior Data Engineer",
+          "job_description": "...",
+          "skills": ["Python", "Spark"],
+          "hybrid_score": 0.92,
+          "bm25_score": 15.4,
+          "embedding_score": 0.88
+        }
+      ]
+    }
+    ```
+    """
+    query = body.query.strip()
+    if not query:
+        raise HTTPException(status_code=422, detail="'query' must not be empty.")
+
+    try:
+        query_embedding = generate_query_embedding(query, seeker_embedding=body.seeker_embedding)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    try:
+        results = hybrid_search_jobs(
+            query=query,
+            query_embedding=query_embedding,
+            k=body.k,
+            num_candidates=body.num_candidates,
+            rrf_k=body.rrf_k,
+        )
+    except Exception as exc:
+        logging.exception("Hybrid search failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Hybrid search failed: {exc}")
+
+    return HybridSearchResponse(query=query, results=results)
+
 
 @app.post(
     "/normalize",
