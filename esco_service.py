@@ -3,8 +3,8 @@ esco_service.py
 Normalizes job titles and skills against the ESCO dataset stored in Postgres.
 
 Table schema (esco_skills_with_mapped):
-  occupationUri   – ESCO occupation URI
-  occupationLabel – preferred occupation title  (used as the match target)
+  occupationuri   – ESCO occupation URI
+  occupationlabel – preferred occupation title  (used as the match target)
   skillLabel      – raw ESCO skill labels (comma-separated string)
   relationType    – essential / optional
   skillType       – knowledge / skill/competence
@@ -45,18 +45,18 @@ _skill_pool: list[str] | None = None
 def _load_esco_data() -> pd.DataFrame:
     engine = _get_engine()
     query = text("""
-        SELECT DISTINCT ON ("occupationUri")
-            "occupationUri",
-            "occupationLabel",
+        SELECT DISTINCT ON ("occupationuri")
+            "occupationuri",
+            "occupationlabel",
             "mapped_skills"
         FROM esco_skills_with_mapped
-        WHERE "occupationLabel" IS NOT NULL
+        WHERE "occupationlabel" IS NOT NULL
           AND "mapped_skills"   IS NOT NULL
     """)
     with engine.connect() as conn:
         df = pd.read_sql(query, conn)
 
-    df["occupationLabel_clean"] = df["occupationLabel"].str.strip().str.lower()
+    df["occupationlabel_clean"] = df["occupationlabel"].str.strip().str.lower()
     logger.info("Loaded %d ESCO occupations from Postgres.", len(df))
     return df
 
@@ -101,7 +101,7 @@ def fuzzy_match_title(title: str, threshold: int = 80) -> dict | None:
     esco_df, _ = _ensure_loaded()
 
     title_clean = clean(title)
-    choices     = esco_df["occupationLabel_clean"].tolist()
+    choices     = esco_df["occupationlabel_clean"].tolist()
 
     match, score, idx = process.extractOne(
         title_clean,
@@ -113,8 +113,8 @@ def fuzzy_match_title(title: str, threshold: int = 80) -> dict | None:
         row = esco_df.iloc[idx]
         return {
             "matched_label":   match,
-            "preferred_label": row["occupationLabel"],
-            "occupation_uri":  row["occupationUri"],
+            "preferred_label": row["occupationlabel"],
+            "occupation_uri":  row["occupationuri"],
             "score":           score,
         }
     return None
