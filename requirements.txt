@@ -30,5 +30,5 @@ python-dotenv
 pyyaml
 dotenv
 
-# ── Fuzzy matching (used by esco_service) ─────────────────────────────────────
+pandas
 rapidfuzz
