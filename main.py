@@ -25,8 +25,19 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableSequence
 from langchain_openai import ChatOpenAI
 
-load_dotenv()
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+# huggingface_hub looks for HF_TOKEN (newer) or HUGGINGFACE_HUB_TOKEN (older).
+# Make sure both are set from whichever one is present in .env, so
+# sentence-transformers/transformers pick up the token regardless of version.
+_hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
+if _hf_token:
+    os.environ["HF_TOKEN"] = _hf_token
+    os.environ["HUGGINGFACE_HUB_TOKEN"] = _hf_token
+    logging.info("HF_TOKEN loaded from .env (length=%d).", len(_hf_token))
+else:
+    logging.warning("HF_TOKEN not found in .env — Hugging Face requests will be unauthenticated.")
 
 # Config and prompt config are fixed server-side files — never sent by the client
 _BASE_DIR = Path(__file__).parent
@@ -34,9 +45,10 @@ _APP_CONFIG = yaml.safe_load((_BASE_DIR / "config.yaml").read_text(encoding="utf
 _PROMPT_CONFIG = yaml.safe_load((_BASE_DIR / "prompt_config.yaml").read_text(encoding="utf-8")) or {}
 
 from parser import parse_cv
-from models import JobRequest, JobDocument, ParseTextRequest, ParsedCV, SkillGapRequest, SkillGapResponse, EnhanceRequest, EnhanceResponse, JobSeekerRequest, SeekerEmbeddingResponse, SeekerDocument, NormalizeRequest, NormalizeResponse, JobUpdateRequest, SearchQueryRequest, KNNSearchRequest, KNNSearchResponse, SeekerUpdateRequest, BM25SearchRequest, BM25SearchResponse, HybridSearchRequest, HybridSearchResponse
+from models import JobRequest, JobDocument, ParseTextRequest, ParsedCV, SkillGapRequest, SkillGapResponse, EnhanceRequest, EnhanceResponse, JobSeekerRequest, SeekerEmbeddingResponse, SeekerDocument, NormalizeRequest, NormalizeResponse, JobUpdateRequest, SearchQueryRequest, KNNSearchRequest, KNNSearchResponse, SeekerUpdateRequest, BM25SearchRequest, BM25SearchResponse, HybridSearchRequest, HybridSearchResponse, RerankRequest, RerankResponse
 from embedding_service import generate_job_embedding, generate_seeker_embedding, generate_query_embedding
 from elastic_service import index_job, index_seeker, delete_job, update_job, knn_search_jobs, bm25_search_jobs, hybrid_search_jobs, delete_seeker, update_seeker
+from reranker_service import rerank_jobs
 from esco_service import normalize_job
 from Course_recommender import CourseRecommender
 
@@ -583,6 +595,51 @@ def hybrid_search(body: HybridSearchRequest):
         raise HTTPException(status_code=502, detail=f"Hybrid search failed: {exc}")
 
     return HybridSearchResponse(query=query, results=results)
+
+
+@app.post(
+    "/rerank",
+    response_model=RerankResponse,
+    summary="Rerank a set of jobs against a query using a cross-encoder",
+    tags=["Search"],
+)
+def rerank(body: RerankRequest):
+    """
+    Rerank a small candidate set of jobs against a free-text query using the
+    **cross-encoder/ms-marco-MiniLM-L-6-v2** model.
+
+    Unlike BM25 or vector kNN, a cross-encoder scores the **query and each
+    job jointly** (no precomputed embeddings), which tends to give more
+    accurate relevance ordering for a final-pass rerank of, e.g., the top-N
+    results from **/hybrid-search**.
+
+    Intended for small candidate lists (tens of jobs, not thousands) since
+    scoring is O(n) model calls.
+
+    ```json
+    {
+      "query": "entry level ai engineer with python",
+      "jobs": [
+        {"job_id": "123", "title": "AI Engineer", "description": "Python, TensorFlow, ML..."},
+        {"job_id": "456", "title": "Backend Developer", "description": "Java, Spring..."}
+      ]
+    }
+    ```
+    """
+    query = body.query.strip()
+    if not query:
+        raise HTTPException(status_code=422, detail="'query' must not be empty.")
+    if not body.jobs:
+        raise HTTPException(status_code=422, detail="'jobs' must not be empty.")
+
+    try:
+        results = rerank_jobs(query=query, jobs=body.jobs)
+    except Exception as exc:
+        logging.exception("Rerank failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Rerank failed: {exc}")
+
+    return RerankResponse(query=query, results=results)
+
 
 
 @app.post(

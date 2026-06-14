@@ -1,6 +1,8 @@
 from sentence_transformers import SentenceTransformer
 import numpy as np
 
+
+
 jobbert = SentenceTransformer("TechWolf/JobBERT-v2")
 
 def generate_seeker_embedding(seeker):
@@ -14,7 +16,7 @@ def generate_seeker_embedding(seeker):
 
     # Zero-pad the description slot so the final vector has the same
     # dimensionality as a job embedding (title + desc + skills).
-    desc_dim   = jobbert.get_sentence_embedding_dimension()
+    desc_dim   = jobbert.get_embedding_dimension()
     desc_pad   = np.zeros(desc_dim)
 
     final_embedding = np.concatenate([title_emb, desc_pad, skills_emb])
@@ -39,7 +41,7 @@ def generate_query_embedding(
         element-wise, combining the user's search intent with their
         profile signal. The result has the same dimensionality.
     """
-    dim = jobbert.get_sentence_embedding_dimension()
+    dim = jobbert.get_embedding_dimension()
 
     title_pad = np.zeros(dim)
     desc_pad  = np.zeros(dim)

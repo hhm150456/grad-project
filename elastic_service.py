@@ -1,12 +1,25 @@
+import os
+
 from elasticsearch import Elasticsearch
 from models import JobDocument, SeekerDocument
 
-INDEX_NAME = "jobs"
+INDEX_NAME = "jobs_strat2_normal"
 SEEKER_INDEX_NAME = "job_seekers"
+EMBEDDING_DIM = 3072
+
+ES_URL = os.environ.get("ES_URL", "https://localhost:9200")
+ES_USER = os.environ.get("ES_USER", "elastic")
+ES_PASSWORD = os.environ.get("ES_PASS")
+
+if not ES_PASSWORD:
+    raise RuntimeError(
+        "ES_PASSWORD environment variable is not set. "
+        "Add ES_PASSWORD=<your elastic user password> to your .env file."
+    )
 
 es = Elasticsearch(
-    "http://localhost:9200",
-    basic_auth=("elastic", "iUC5UcRMUKI4JgfEn*rE"),
+    ES_URL,
+    basic_auth=(ES_USER, ES_PASSWORD),
     verify_certs=False,
     ssl_show_warn=False,
 )
@@ -18,7 +31,7 @@ def index_job(job: JobDocument):
 
     document = {
         "job_id": job.job_id,
-        "job_title": job.job_title,
+        "normal_job_title": job.job_title,
         "job_description": job.job_description,
         "skills": job.skills,
         "embedding": job.embedding
@@ -33,7 +46,7 @@ def index_job(job: JobDocument):
     return response
 
 
-def create_index(dims: int):
+def create_index(dims: int = EMBEDDING_DIM):
     """
     Create Elasticsearch index with vector mapping
     """
@@ -41,16 +54,16 @@ def create_index(dims: int):
     mapping = {
         "mappings": {
             "properties": {
-                "job_id": {"type": "keyword"},
-                "job_title": {"type": "text"},
+                "job_id":          {"type": "keyword"},
+                "normal_job_title":       {"type": "text"},
                 "job_description": {"type": "text"},
-                "skills": {"type": "keyword"},
+                "skills":          {"type": "keyword"},
                 "embedding": {
-                    "type": "dense_vector",
-                    "dims": dims,
-                    "index": True,
-                    "similarity": "cosine"
-                }
+                    "type":       "dense_vector",
+                    "dims":       dims,
+                    "index":      True,
+                    "similarity": "cosine",
+                },
             }
         }
     }
@@ -115,6 +128,11 @@ def update_job(job_id: str, updates: dict) -> dict:
     if not es.exists(index=INDEX_NAME, id=job_id):
         raise ValueError(f"Job '{job_id}' not found in index '{INDEX_NAME}'.")
 
+    # The ES mapping stores the title under "normal_job_title"; translate
+    # the public "job_title" field name so callers don't need to know that.
+    if "job_title" in updates:
+        updates = {**updates, "normal_job_title": updates.pop("job_title")}
+
     response = es.update(
         index=INDEX_NAME,
         id=job_id,
@@ -139,7 +157,7 @@ def knn_search_jobs(query_embedding: list, k: int = 10, num_candidates: int = 10
                 "k": k,
                 "num_candidates": num_candidates,
             },
-            "_source": ["job_id", "job_title", "job_description", "skills"],
+            "_source": ["job_id", "normal_job_title", "job_description", "skills"],
         },
     )
 
@@ -147,7 +165,7 @@ def knn_search_jobs(query_embedding: list, k: int = 10, num_candidates: int = 10
     for hit in response["hits"]["hits"]:
         results.append({
             "job_id":          hit["_source"]["job_id"],
-            "job_title":       hit["_source"]["job_title"],
+            "job_title":       hit["_source"]["normal_job_title"],
             "job_description": hit["_source"]["job_description"],
             "skills":          hit["_source"]["skills"],
             "score":           hit["_score"],
@@ -157,7 +175,7 @@ def knn_search_jobs(query_embedding: list, k: int = 10, num_candidates: int = 10
 def bm25_search_jobs(query: str, k: int = 10) -> list:
     """
     Run a BM25 full-text search against the jobs index using the provided
-    query string. Searches job_title, job_description and skills fields.
+    query string. Searches normal_job_title, job_description and skills fields.
     """
     response = es.search(
         index=INDEX_NAME,
@@ -165,11 +183,11 @@ def bm25_search_jobs(query: str, k: int = 10) -> list:
             "query": {
                 "multi_match": {
                     "query": query,
-                    "fields": ["job_title^2", "job_description", "skills"],
+                    "fields": ["normal_job_title^2", "job_description", "skills"],
                 }
             },
             "size": k,
-            "_source": ["job_id", "job_title", "job_description", "skills"],
+            "_source": ["job_id", "normal_job_title", "job_description", "skills"],
         },
     )
 
@@ -177,7 +195,7 @@ def bm25_search_jobs(query: str, k: int = 10) -> list:
     for hit in response["hits"]["hits"]:
         results.append({
             "job_id":          hit["_source"]["job_id"],
-            "job_title":       hit["_source"]["job_title"],
+            "job_title":       hit["_source"]["normal_job_title"],
             "job_description": hit["_source"]["job_description"],
             "skills":          hit["_source"]["skills"],
             "score":           hit["_score"],

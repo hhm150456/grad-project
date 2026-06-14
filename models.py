@@ -247,6 +247,48 @@ class HybridSearchResponse(BaseModel):
     results: list[HybridSearchResult]
 
 
+class RerankJobItem(BaseModel):
+    job_id: str
+    title: str
+    description: str
+
+
+class RerankRequest(BaseModel):
+    query: str
+    jobs: list[RerankJobItem]
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "query": "entry level ai engineer with python",
+                "jobs": [
+                    {
+                        "job_id": "123",
+                        "title": "AI Engineer",
+                        "description": "Python, TensorFlow, ML...",
+                    },
+                    {
+                        "job_id": "456",
+                        "title": "Backend Developer",
+                        "description": "Java, Spring...",
+                    },
+                ],
+            }
+        }
+    }
+
+
+class RerankResult(BaseModel):
+    job_id: str
+    title: str
+    rerank_score: float
+
+
+class RerankResponse(BaseModel):
+    query: str
+    results: list[RerankResult]
+
+
 class SeekerUpdateRequest(BaseModel):
     title: str | None = None
     skills: list[str] | None = None
