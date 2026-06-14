@@ -1,11 +1,16 @@
 # ── Web framework ────────────────────────────────────────────────────────────
 fastapi
 uvicorn[standard]
+langchain_core.prompts
+langchain_core.runnables
 
 # ── Data validation ───────────────────────────────────────────────────────────
 pydantic
 tqdm
-
+typing
+difflib
+__future__
+dataclasses
 # ── Embeddings ────────────────────────────────────────────────────────────────
 sentence-transformers
 numpy
@@ -16,6 +21,8 @@ elasticsearch
 # ── PostgreSQL ────────────────────────────────────────────────────────────────
 psycopg2-binary
 sqlalchemy
+
+numpy
 
 # ── LLM / LangChain ──────────────────────────────────────────────────────────
 langchain-core
@@ -29,6 +36,11 @@ pdfplumber
 python-dotenv
 pyyaml
 dotenv
-
+re
 pandas
 rapidfuzz
+pathlib
+yaml
+io
+logging
+python-multipart
