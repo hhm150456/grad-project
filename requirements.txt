@@ -9,7 +9,6 @@ pydantic
 tqdm
 typing
 difflib
-__future__
 dataclasses
 # ── Embeddings ────────────────────────────────────────────────────────────────
 sentence-transformers
