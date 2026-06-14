@@ -1,8 +1,7 @@
 # ── Web framework ────────────────────────────────────────────────────────────
 fastapi
 uvicorn[standard]
-langchain_core.prompts
-langchain_core.runnables
+langchain_core
 
 # ── Data validation ───────────────────────────────────────────────────────────
 pydantic
