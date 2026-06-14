@@ -6,9 +6,6 @@ langchain_core
 # ── Data validation ───────────────────────────────────────────────────────────
 pydantic
 tqdm
-typing
-difflib
-dataclasses
 # ── Embeddings ────────────────────────────────────────────────────────────────
 sentence-transformers
 numpy
@@ -20,7 +17,6 @@ elasticsearch
 psycopg2-binary
 sqlalchemy
 
-numpy
 
 # ── LLM / LangChain ──────────────────────────────────────────────────────────
 langchain-core
@@ -33,12 +29,7 @@ pdfplumber
 # ── Config & env ──────────────────────────────────────────────────────────────
 python-dotenv
 pyyaml
-dotenv
-re
 pandas
 rapidfuzz
 pathlib
-yaml
-io
-logging
 python-multipart
