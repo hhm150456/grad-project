@@ -128,7 +128,7 @@ class JobUpdateRequest(BaseModel):
 
 class SearchQueryRequest(BaseModel):
     query: str
-    seeker_embedding: list[float]
+    seeker_embedding: list[float] | None = None
 
     model_config = {
         "json_schema_extra": {
@@ -140,7 +140,9 @@ class SearchQueryRequest(BaseModel):
 
     @field_validator("seeker_embedding")
     @classmethod
-    def check_embedding_dim(cls, v: list[float]) -> list[float]:
+    def check_embedding_dim(cls, v: list[float] | None) -> list[float] | None:
+        if v is None:
+            return v
         if len(v) != 3072:
             raise ValueError(
                 f"seeker_embedding must have 3072 dimensions (got {len(v)}). "
