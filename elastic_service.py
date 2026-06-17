@@ -3,7 +3,7 @@ import os
 from elasticsearch import Elasticsearch
 from models import JobDocument, SeekerDocument
 
-INDEX_NAME = "jobs_strat2_normal_actual2"
+INDEX_NAME = "jobs"
 SEEKER_INDEX_NAME = "job_seekers"
 EMBEDDING_DIM = 3072
 
