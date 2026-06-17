@@ -7,21 +7,30 @@ INDEX_NAME = "jobs_strat2_normal_actual2"
 SEEKER_INDEX_NAME = "job_seekers"
 EMBEDDING_DIM = 3072
 
-ES_URL = os.environ.get("ES_URL", "https://localhost:9200")
-ES_USER = os.environ.get("ES_USER", "elastic")
-ES_PASSWORD = os.environ.get("ES_PASSWORD")
+ES_CLOUD_ID = os.environ.get("ES_CLOUD_ID")
+ES_API_KEY = os.environ.get("ES_API_KEY")
 
-if not ES_PASSWORD:
+if not ES_CLOUD_ID:
     raise RuntimeError(
-        "ES_PASSWORD environment variable is not set. "
-        "Add ES_PASSWORD=<your elastic user password> to your .env file."
+        "ES_CLOUD_ID environment variable is not set. "
+        "Add ES_CLOUD_ID=<your deployment's Cloud ID> to your .env file. "
+        "Find it in the Elastic Cloud console on your deployment's overview page."
     )
 
+if not ES_API_KEY:
+    raise RuntimeError(
+        "ES_API_KEY environment variable is not set. "
+        "Add ES_API_KEY=<your encoded API key> to your .env file. "
+        "Create one in Kibana under Stack Management > API Keys (use the "
+        "base64 'encoded' value it gives you, not the raw id/secret pair)."
+    )
+
+# Elastic Cloud deployments use valid, CA-signed certificates, so there's no
+# need for verify_certs=False / ssl_show_warn=False here (those were only
+# needed for the self-signed local dev cluster).
 es = Elasticsearch(
-    ES_URL,
-    basic_auth=(ES_USER, ES_PASSWORD),
-    verify_certs=False,
-    ssl_show_warn=False,
+    cloud_id=ES_CLOUD_ID,
+    api_key=ES_API_KEY,
 )
 
 def index_job(job: JobDocument):
