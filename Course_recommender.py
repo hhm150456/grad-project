@@ -27,9 +27,6 @@ import psycopg2
 import psycopg2.extras
 
 
-# ---------------------------------------------------------------------------
-# Data class
-# ---------------------------------------------------------------------------
 
 @dataclass
 class Course:
@@ -55,9 +52,7 @@ class Course:
         )
 
 
-# ---------------------------------------------------------------------------
-# Recommender
-# ---------------------------------------------------------------------------
+
 
 class CourseRecommender:
     """
@@ -110,9 +105,7 @@ class CourseRecommender:
             )
         self._conn: Optional[psycopg2.extensions.connection] = None
 
-    # ------------------------------------------------------------------
-    # Connection management
-    # ------------------------------------------------------------------
+    
 
     def connect(self) -> "CourseRecommender":
         """Open the database connection. Called automatically on first use."""
@@ -133,10 +126,7 @@ class CourseRecommender:
     def __exit__(self, *_) -> None:
         self.close()
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
+    
     def recommend(
         self,
         skills: List[str],

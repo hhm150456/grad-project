@@ -3,13 +3,13 @@ import os
 from elasticsearch import Elasticsearch
 from models import JobDocument, SeekerDocument
 
-INDEX_NAME = "jobs_strat2_normal"
+INDEX_NAME = "jobs_strat2_normal_actual2"
 SEEKER_INDEX_NAME = "job_seekers"
 EMBEDDING_DIM = 3072
 
 ES_URL = os.environ.get("ES_URL", "https://localhost:9200")
 ES_USER = os.environ.get("ES_USER", "elastic")
-ES_PASSWORD = os.environ.get("ES_PASS")
+ES_PASSWORD = os.environ.get("ES_PASSWORD")
 
 if not ES_PASSWORD:
     raise RuntimeError(
