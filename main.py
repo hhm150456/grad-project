@@ -794,7 +794,7 @@ async def enhance_resume(
     llm = ChatOpenAI(
         model=model_name,
         base_url="https://openrouter.ai/api/v1",
-        api_key=os.environ["OPENROUTER_API_KEY"],
+        api_key=os.environ["CV_API_KEY"],
         default_headers={
             "HTTP-Referer": "https:localhost:8000",
             "X-Title": "Joblin",
