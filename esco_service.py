@@ -2,15 +2,15 @@
 esco_service.py
 Normalizes job titles and skills against the ESCO dataset stored in Postgres.
 
-Table schema (escoSkillsWithMapped):
-  occupationUri   – ESCO occupation URI
-  occupationLabel – preferred occupation title  (used as the match target)
+Table schema (EscoSkillsWithMapped):
+  OccupationUri   – ESCO occupation URI
+  OccupationLabel – preferred occupation title  (used as the match target)
   skillLabel      – raw ESCO skill labels (comma-separated string)
   relationType    – essential / optional
   skillType       – knowledge / skill/competence
   skillUri        – skill URIs (comma-separated)
   iscoGroup       – ISCO-08 group code
-  mappedSkills   – clean, normalised skill names (comma-separated string)
+  MappedSkills   – clean, normalised skill names (comma-separated string)
 """
 
 import os
@@ -45,25 +45,25 @@ _skill_pool: list[str] | None = None
 def _load_esco_data() -> pd.DataFrame:
     engine = _get_engine()
     query = text("""
-        SELECT DISTINCT ON ("occupationUri")
-            "occupationUri",
-            "occupationLabel",
-            "mappedSkills"
-        FROM escoSkillsWithMapped
-        WHERE "occupationLabel" IS NOT NULL
-          AND "mappedSkills"   IS NOT NULL
+        SELECT DISTINCT ON ("OccupationUri")
+            "OccupationUri",
+            "OccupationLabel",
+            "MappedSkills"
+        FROM EscoSkillsWithMapped
+        WHERE "OccupationLabel" IS NOT NULL
+          AND "MappedSkills"   IS NOT NULL
     """)
     with engine.connect() as conn:
         df = pd.read_sql(query, conn)
 
-    df["occupationlabel_clean"] = df["occupationLabel"].str.strip().str.lower()
+    df["occupationlabel_clean"] = df["OccupationLabel"].str.strip().str.lower()
     logger.info("Loaded %d ESCO occupations from Postgres.", len(df))
     return df
 
 
 def _build_skill_pool(df: pd.DataFrame) -> list[str]:
     skills: set[str] = set()
-    for raw in df["mappedSkills"].dropna():
+    for raw in df["MappedSkills"].dropna():
         for s in raw.split(","):
             s = s.strip().lower()
             if s:
@@ -113,8 +113,8 @@ def fuzzy_match_title(title: str, threshold: int = 80) -> dict | None:
         row = esco_df.iloc[idx]
         return {
             "matched_label":   match,
-            "preferred_label": row["occupationLabel"],
-            "occupation_uri":  row["occupationUri"],
+            "preferred_label": row["OccupationLabel"],
+            "occupation_uri":  row["OccupationUri"],
             "score":           score,
         }
     return None
@@ -170,7 +170,7 @@ def normalize_job(job_title: str, job_skills: list[str]) -> dict:
 
     return {
         "normalized_title": title_match["preferred_label"],
-        "occupation_uri":   title_match["occupationUri"],
+        "occupation_uri":   title_match["OccupationUri"],
         "confidence":       compute_final_score(title_match["score"], skill_matches),
         "title_score":      title_match["score"],
         "matched_skills":   skill_matches,
