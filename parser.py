@@ -26,19 +26,18 @@ def first_match(pattern: str, text: str, flags: int = 0) -> Optional[str]:
 # PDF text normalizer
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Known section headings used to re-insert newlines before them
 _SECTION_TITLES_RE = re.compile(
-    r"(?<!\n)"  # not already preceded by newline
-    r"(?<!Technical )"   # not a sub-label like "Technical Skills:"
+    r"(?<!\n)"
+    r"(?<!Technical )"
     r"(?="
     r"(?:WORK\s+EXPERIENCE|EXPERIENCE|EMPLOYMENT|EDUCATION|SKILLS?|PROJECTS?|"
-    r"CERTIFICATIONS?|LANGUAGES?|VOLUNTEER(?:\s+ACTIVITIES)?|AWARDS?|SUMMARY|"
-    r"PROFILE|OBJECTIVE|PUBLICATIONS?)"
+    r"CERTIFICATIONS?|COURSES?\s*(?:&\s*CERTIFICATIONS?)?|SCHOLARSHIPS?(?:\s*&\s*TRAINING)?|"
+    r"LANGUAGES?|VOLUNTEER(?:\s+ACTIVITIES?)?|AWARDS?|SUMMARY|"
+    r"PROFILE|OBJECTIVE|PUBLICATIONS?|SOFT\s+SKILLS?|ACTIVITIES?|TECHNICAL\s+SKILLS?)"
     r"\b)",
     re.IGNORECASE,
 )
 
-# Bullet characters to split on
 _BULLET_RE = re.compile(r"(?<!\n)(●|•|·|▸|▪|➤|➢|◆|▶|►)(?!\n)")
 
 
@@ -49,14 +48,12 @@ def normalize_pdf_text(text: str) -> str:
     a clean, line-per-logical-unit layout.
     """
     lines = text.splitlines()
-    # Pre-pass: split any line that contains multiple section headings inline
-    # Only split on ALL-CAPS headings to avoid false positives like "Technical Skills:"
     _INLINE_SECTION_RE = re.compile(
         r"(?<!\A)\s{2,}(?="
         r"(?:WORK\s+EXPERIENCE|EXPERIENCE|EMPLOYMENT|EDUCATION|SKILLS|PROJECTS|"
         r"CERTIFICATIONS|LANGUAGES|VOLUNTEER(?:\s+ACTIVITIES)?|AWARDS|SUMMARY|"
         r"PROFILE|OBJECTIVE|PUBLICATIONS)"
-        r"(?:\s+[A-Z]|\s*$|\s*\n))",  # must be followed by another capital word or end
+        r"(?:\s+[A-Z]|\s*$|\s*\n))",
     )
     expanded: list[str] = []
     for raw in lines:
@@ -70,16 +67,16 @@ def normalize_pdf_text(text: str) -> str:
         stripped = raw.strip()
         if not stripped:
             continue
-        # If line is a single short word/token that looks like a word fragment,
-        # try to append it to the previous accumulated line
+        _is_contact_line = bool(re.search(r"@|\+\d|linkedin|github|http|www\.|,\s*[A-Z]", stripped, re.I))
         if (
             merged
             and len(stripped.split()) <= 2
             and len(stripped) <= 20
+            and not _is_contact_line
             and not re.match(r"^(●|•|·|▸|▪|➤|➢|◆|▶|►)", stripped)
             and not re.match(
                 r"^(WORK|EXPERIENCE|EDUCATION|SKILLS?|PROJECTS?|CERTIFICATIONS?|"
-                r"LANGUAGES?|VOLUNTEER|AWARDS?|SUMMARY|PROFILE|OBJECTIVE)\b",
+                r"LANGUAGES?|VOLUNTEER|AWARDS?|SUMMARY|PROFILE|OBJECTIVE)\\b",
                 stripped, re.I,
             )
         ):
@@ -87,27 +84,22 @@ def normalize_pdf_text(text: str) -> str:
         else:
             merged.append(stripped)
 
-    # Re-join then surgically insert newlines before section headings and bullets
     combined = "\n".join(merged)
 
-    # Fix split section headings like "WORK  \nEXPERIENCE  ..." → "WORK EXPERIENCE ..."
     combined = re.sub(
         r"\b(WORK|TECHNICAL|VOLUNTEER)\s*\n+\s*(EXPERIENCE|SKILLS?|ACTIVITIES?)\b",
         r"\1 \2",
         combined, flags=re.IGNORECASE,
     )
 
-    # "...Technical \n\nSkills:" — orphaned sub-heading inside a job block.
-    # Covers: "... Technical \n\nSkills:", "Technical \n\nSkills:", etc.
     combined = re.sub(
         r"Technical\s*\n[\s\n]*(Skills?\s*:)",
-        r"Technical \1",   # join → "Technical Skills:"
+        r"Technical \1",
         combined, flags=re.IGNORECASE,
     )
 
     combined = _SECTION_TITLES_RE.sub(r"\n\n", combined)
     combined = _BULLET_RE.sub(r"\n●", combined)
-    # Collapse runs of blank lines
     combined = re.sub(r"\n{3,}", "\n\n", combined)
     return combined.strip()
 
@@ -123,12 +115,16 @@ _SECTION_HEADINGS = [
     r"skills?(\s+&\s+technologies?)?", r"technical\s+skills?", r"core\s+competencies",
     r"tools?(\s+&\s+(technologies?|platforms?))?",
     r"certifications?(\s+&\s+licenses?)?", r"licenses?",
+    r"courses?(\s*&\s*certifications?)?",
+    r"scholarships?(\s*&\s*training)?",
     r"languages?",
     r"projects?",
     r"awards?(\s+&\s+achievements?)?",
     r"summary|profile|objective|about(\s+me)?",
     r"publications?",
     r"volunteer(\s+activities?)?",
+    r"soft\s+skills?",
+    r"activities?",
 ]
 
 _HEADING_RE = re.compile(
@@ -183,30 +179,67 @@ def parse_personal_info(text: str) -> dict:
     website = web_m.group() if web_m else None
 
     location = {"city": None, "country": None}
-    loc_m = re.search(
-        r"\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*,\s*[A-Z][a-zA-Z]{1,20})\b", header
+    known_countries = {
+        "egypt", "usa", "uk", "germany", "france", "canada", "australia",
+        "jordan", "saudi arabia", "uae", "qatar", "kuwait", "lebanon",
+    }
+    _LOC_RE = re.compile(
+        r"\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*,\s*[A-Z][a-zA-Z]{1,20})\b"
     )
-    if loc_m:
+    for hline in split_lines(header):
+        loc_m = _LOC_RE.search(hline)
+        if not loc_m:
+            continue
         cand = loc_m.group().strip()
         bad  = {"linkedin", "github", "present", "current", "university", "institute", "college"}
-        if not any(b in cand.lower() for b in bad) and len(cand) < 50:
-            parts = [p.strip() for p in cand.split(",", 1)]
-            location = {
-                "city":    parts[0] if len(parts) > 0 else None,
-                "country": parts[1] if len(parts) > 1 else None,
-            }
+        if any(b in cand.lower() for b in bad) or len(cand) >= 50:
+            continue
+        parts = [p.strip() for p in cand.split(",", 1)]
+        city_part    = parts[0] if len(parts) > 0 else None
+        country_part = parts[1] if len(parts) > 1 else None
+        if country_part and country_part.lower() not in known_countries:
+            country_search = re.search(
+                r"\b(Egypt|USA|UK|Germany|France|Canada|Australia|Jordan|"
+                r"Saudi Arabia|UAE|Qatar|Kuwait|Lebanon)\b",
+                header, re.I
+            )
+            if country_search:
+                country_part = country_search.group().strip()
+        location = {"city": city_part, "country": country_part}
+        break
+
+    # FIX: name extraction — strip job titles and newlines from candidate name lines
+    _JOB_TITLE_WORDS = re.compile(
+        r"\b(developer|engineer|designer|analyst|manager|intern|trainee|"
+        r"consultant|architect|lead|head|officer|director|specialist|"
+        r"front.end|back.end|fullstack|full.stack|devops|senior|junior|"
+        r"graduate|undergraduate|student|university|college|institute)\b",
+        re.I,
+    )
 
     name = None
     _skip = re.compile(r"@|http|linkedin|github|phone|email|mobile|tel:|www\.", re.I)
-    for line in split_lines(text)[:10]:
-        words = line.split()
-        # Skip lines with contact info markers or URLs
+    for line in split_lines(text)[:15]:
+        line = clean(line)
+        # Skip lines with colons (labels like "Expected Graduation:")
+        if ":" in line:
+            continue
+        # Skip contact/URL lines
         if _skip.search(line):
             continue
-        # Filter out words that look like phone numbers, emails, or separators
-        name_words = [w for w in words if not re.search(r"\d{2,}|@|\|", w)]
-        if 2 <= len(name_words) <= 5 and name_words == words[:len(name_words)] and name_words[0][0].isupper():
-            # All kept words must start with a capital letter (proper name)
+        # Try to extract a name even if a job title follows on the same line
+        # by taking only the first 2–4 capitalized words before any job-title word
+        name_candidate = re.split(
+            r"\s+(?=(?:developer|engineer|designer|analyst|manager|intern|trainee|"
+            r"consultant|architect|lead|head|officer|director|specialist|"
+            r"front.end|back.end|fullstack|full.stack|devops|senior|junior|"
+            r"graduate|undergraduate|student|university|college|institute)\b)",
+            line, maxsplit=1, flags=re.I
+        )[0].strip()
+        words = name_candidate.split()
+        # Filter words with digits, symbols
+        name_words = [w for w in words if not re.search(r"\d{2,}|@|\||,", w)]
+        if 2 <= len(name_words) <= 4 and name_words[0][0].isupper():
             if all(w[0].isupper() for w in name_words):
                 name = clean(" ".join(name_words))
                 break
@@ -246,12 +279,10 @@ def parse_work_experience(section_text: str) -> list[dict]:
 
     all_lines = split_lines(section_text)
 
-    # Find every line that contains a date range — each anchors one job
     date_line_idxs = [i for i, line in enumerate(all_lines) if PERIOD_RE.search(line)]
     if not date_line_idxs:
         return []
 
-    # Walk back from each date line to find where the job title starts
     job_start_idxs: list[int] = []
     for di in date_line_idxs:
         start = di
@@ -285,21 +316,33 @@ def parse_work_experience(section_text: str) -> list[dict]:
             if re.match(r"^[•·▸▪\-\*➤➢●◆▶►]", line):
                 continue
             if PERIOD_RE.search(line):
-                # Date range is on this line — company name precedes the date
                 company_cand = PERIOD_RE.sub("", line).strip()
                 company_cand = re.sub(r"\s*[—|]\s*$", "", company_cand).strip()
                 if company_cand and not company:
                     company = clean(company_cand)
                 continue
-            # Skip lines that are clearly sentence continuations (wrapped text):
-            # lowercase start, or very short fragments like "approach to problem-solving."
             stripped = line.strip()
             if not stripped:
                 continue
             if stripped[0].islower() or (len(stripped.split()) <= 4 and stripped[0].islower()):
                 continue
+            # FIX: skip lines that are pure prose descriptions (long sentences not title-like)
+            # A title line should not contain connective words mid-sentence
             if title is None:
-                title = clean(line)
+                words_in_line = stripped.split()
+                if len(words_in_line) > 12:
+                    continue
+                # Strip inline descriptions after em-dash
+                title_clean = re.split(r"\s*[–—]\s*(?=[A-Z][a-z]|Gained|Led|Built|Developed|Focused)", stripped)[0].strip()
+                # Skip if the line starts with a verb (it's a description, not a title)
+                if re.match(r"^(Gained|Focused|Developed|Led|Built|Created|Managed|Worked|Applied)\b", title_clean, re.I):
+                    continue
+                # Skip if the line looks like a mid-sentence fragment (acronym/word followed by comma)
+                if re.match(r"^[A-Z]{2,}[,\s]|^[A-Z][a-z]+,\s", title_clean):
+                    # Allow proper titles like "ASP.NET Core Trainee"
+                    if not re.search(r"(trainee|engineer|developer|analyst|manager|intern|coordinator|officer|specialist)", title_clean, re.I):
+                        continue
+                title = clean(title_clean)
             elif company is None:
                 company = clean(re.sub(r"\s*[—|].*$", "", line))
                 break
@@ -323,14 +366,32 @@ def parse_work_experience(section_text: str) -> list[dict]:
             if re.match(r"^[•·▸▪\-\*➤➢●◆▶►]", line)
         ]
 
+        # FIX: also capture inline prose descriptions for CVs without bullet points
+        # Collect non-title, non-company, non-date lines as a description
+        description_lines = []
+        past_header = False
+        for line in block:
+            if re.match(r"^[•·▸▪\-\*➤➢●◆▶►]", line):
+                past_header = True
+                continue
+            if PERIOD_RE.search(line):
+                past_header = True
+                continue
+            if not past_header:
+                continue
+            stripped = line.strip()
+            if stripped and len(stripped) > 20:
+                description_lines.append(stripped)
+
         jobs.append({
-            "company":    company,
-            "title":      title,
-            "location":   location,
-            "start_date": start_date,
-            "end_date":   end_date,
-            "current":    current,
-            "highlights": [h for h in highlights if h and len(h) > 10],
+            "company":     company,
+            "title":       title,
+            "location":    location,
+            "start_date":  start_date,
+            "end_date":    end_date,
+            "current":     current,
+            "highlights":  [h for h in highlights if h and len(h) > 10],
+            "description": " ".join(description_lines) if description_lines and not highlights else None,
         })
 
     return [j for j in jobs if j["title"]]
@@ -347,15 +408,21 @@ _DEGREE_RE = re.compile(
     re.I,
 )
 
+# Lines that look like stray PDF text bleeding into education — reject these as institutions
+_BOGUS_INSTITUTION_RE = re.compile(
+    r"^(languages?|projects?|skills?|technical|certif|experience through|"
+    r"programming languages?|web development|data analysis|bioinformatics|"
+    r"ui/ux|tools?)",
+    re.I,
+)
+
 
 def parse_education(section_text: str) -> list[dict]:
     if not section_text:
         return []
 
-    # Split into blocks: prefer double-newline, fall back to date-range anchors
     raw_blocks = re.split(r"\n{2,}", section_text)
     if len(raw_blocks) <= 1:
-        # PDF text often lacks blank lines — split at lines containing a date range
         raw_blocks = []
         current: list[str] = []
         for line in section_text.splitlines():
@@ -376,14 +443,24 @@ def parse_education(section_text: str) -> list[dict]:
         degree_m = _DEGREE_RE.search(block)
         degree   = degree_m.group() if degree_m else None
 
+        # FIX: extract field of study more robustly — look for "in X" after degree
+        # and also handle "BA in Computer Science", "Bachelor's Degree in X, Department of Y"
         field = None
         if degree_m:
             after   = block[degree_m.end():].strip()
-            field_m = re.match(r"(?:in|of)?\s*([A-Za-z\s&]+?)(?:\n|,|$)", after)
+            # Try "in <Field>" or "of <Field>"
+            field_m = re.match(r"(?:['s]*\s+)?(?:Degree\s+)?(?:in|of)\s+([A-Za-z\s&,]+?)(?:\n|,\s*Department|\.|$)", after, re.I)
             if field_m:
                 field = clean(field_m.group(1))
+            # Fallback: "BA, Computer science" — comma-separated field
+            elif not field_m:
+                comma_m = re.match(r",\s*([A-Za-z][A-Za-z\s&]+?)(?:\n|$)", after)
+                if comma_m:
+                    candidate = clean(comma_m.group(1))
+                    # Only accept if it looks like an academic field, not a location
+                    if len(candidate.split()) <= 5 and not re.search(r"\b(Egypt|USA|UK|City|University)\b", candidate, re.I):
+                        field = candidate
 
-        # Prefer end year of a date range as graduation year
         period_m = PERIOD_RE.search(block)
         if period_m:
             end_raw = period_m.group(2)
@@ -393,18 +470,27 @@ def parse_education(section_text: str) -> list[dict]:
             year_m = re.search(r"\b(20\d\d|19\d\d)\b", block)
             graduation_year = year_m.group() if year_m else None
 
+        # Also capture "Expected Graduation: YYYY"
+        exp_m = re.search(r"expected\s+graduation\s*:\s*(20\d\d|19\d\d)", block, re.I)
+        if exp_m:
+            graduation_year = exp_m.group(1)
+
         gpa_m = re.search(r"\bGPA[:\s]+([0-9.]+)", block, re.I)
         gpa   = gpa_m.group(1) if gpa_m else None
 
         institution = None
         for line in lines:
-            # Strip date ranges from candidate institution lines
             stripped = PERIOD_RE.sub("", line).strip()
             if not stripped:
                 continue
+            # FIX: reject lines that are clearly not institution names
+            if _BOGUS_INSTITUTION_RE.match(stripped):
+                continue
             if not _DEGREE_RE.match(stripped) and not re.match(r"^(20|19)\d\d", stripped):
-                institution = clean(stripped)
-                break
+                # Reject very long lines that look like course descriptions
+                if len(stripped.split()) <= 12:
+                    institution = clean(stripped)
+                    break
 
         if institution or degree:
             entries.append({
@@ -414,6 +500,17 @@ def parse_education(section_text: str) -> list[dict]:
                 "graduation_year": graduation_year,
                 "gpa":             gpa,
             })
+
+    # FIX: deduplicate — keep only entries that have a degree OR a recognisable institution
+    # (filters out stray PDF-text blocks that slipped through)
+    entries = [
+        e for e in entries
+        if e["degree"] or (
+            e["institution"] and
+            not _BOGUS_INSTITUTION_RE.match(e["institution"]) and
+            re.search(r"university|college|institute|school|academy", e["institution"], re.I)
+        )
+    ]
 
     return entries
 
@@ -442,11 +539,14 @@ _TECH_KEYWORDS: set[str] = {
     "git","github","gitlab","bitbucket","jira","confluence","notion","slack",
     "figma","sketch","postman","swagger","vs code","intellij","eclipse","xcode",
     "android studio","vim","emacs",
-    # Data / BI tools
     "power bi","tableau","excel","hadoop","spark","apache spark","kafka","flink",
     "apache flink","hive","apache hive","snowflake","dbt","airbyte","fivetran",
     "apache nifi","nifi","dimensional modeling","data warehousing",
     "aws athena","athena","looker","qlik","metabase","superset",
+    # Bioinformatics
+    "biopython","blast","clustal omega",
+    # Notebooks
+    "jupyter notebook","jupyter",
 }
 
 _TOOL_KEYWORDS: set[str] = {
@@ -455,10 +555,10 @@ _TOOL_KEYWORDS: set[str] = {
     "circleci","prometheus","grafana","datadog","splunk","git","github","gitlab",
     "bitbucket","jira","confluence","figma","sketch","postman","swagger",
     "intellij","vs code","android studio","xcode","firebase","heroku","vercel","netlify",
-    # Data platform tools
     "power bi","tableau","hadoop","spark","apache spark","kafka","flink","apache flink",
     "hive","apache hive","snowflake","dbt","airbyte","fivetran","apache nifi","nifi",
     "aws athena","athena","looker","qlik","metabase","superset","excel",
+    "jupyter notebook","jupyter",
 }
 
 _METHOD_KEYWORDS: set[str] = {
@@ -491,17 +591,14 @@ def parse_skills(section_text: str, full_text: str) -> dict:
     for tok in tokens:
         _classify(tok)
 
-    # Scan full text for ALL known keywords (handles multi-word like "Power BI")
     for kw in _TECH_KEYWORDS | _METHOD_KEYWORDS:
         if kw not in seen and re.search(r"\b" + re.escape(kw) + r"\b", full_text, re.I):
             _classify(kw)
 
-    # De-duplicate: remove entries that are substrings of a longer entry already present
     def _dedup(lst: list[str]) -> list[str]:
         out = []
         s = sorted(set(lst), key=len, reverse=True)
         for item in s:
-            # Keep item if no already-kept item fully contains it
             if not any(item != kept and item in kept for kept in out):
                 out.append(item)
         return sorted(out)
@@ -520,8 +617,16 @@ def parse_skills(section_text: str, full_text: str) -> dict:
 _CERT_ISSUERS: set[str] = {
     "aws","amazon","google","microsoft","azure","oracle","cisco","comptia",
     "pmi","isaca","isc2","isc²","red hat","salesforce","databricks","mongodb",
-    "hashicorp","cncf","linux foundation","coursera","udemy","edx",
+    "hashicorp","cncf","linux foundation","coursera","udemy","edx","datacamp",
+    "alx","meta","ibm",
 }
+
+# Patterns that indicate a certification/course entry
+_CERT_LINE_RE = re.compile(
+    r"(certif|diploma|course|program|training|bootcamp|nanodegree|"
+    r"essentials|foundations?|professional\s+certificate)",
+    re.I,
+)
 
 
 def parse_certifications(section_text: Optional[str]) -> list[dict]:
@@ -529,13 +634,23 @@ def parse_certifications(section_text: Optional[str]) -> list[dict]:
         return []
 
     certs: list[dict] = []
+    seen_names: set[str] = set()
+
     for line in split_lines(section_text):
         if len(line) < 5:
+            continue
+        # Skip lines that are clearly not cert names (e.g. stray location lines)
+        if re.match(r"^(present|current|\d{4})\b", line, re.I):
             continue
         year_m = re.search(r"\b(20\d\d|19\d\d)\b", line)
         date   = year_m.group() if year_m else None
         name   = re.sub(r"\s*[\|\-–]\s*(?:20|19)\d\d.*$", "", line).strip()
+        # Strip leading bullet characters
+        name   = re.sub(r"^[•·▸▪\-\*➤➢●◆▶►]\s*", "", name).strip()
+        if not name or name.lower() in seen_names:
+            continue
         issuer = next((i.title() for i in _CERT_ISSUERS if i in name.lower()), None)
+        seen_names.add(name.lower())
         certs.append({"name": clean(name), "issuer": issuer, "issued_date": date, "expiry_date": None})
 
     return certs
@@ -557,7 +672,7 @@ _SPOKEN_LANGUAGES: set[str] = {
 
 _PROFICIENCY_RE = re.compile(
     r"\b(native|fluent|proficient|advanced|intermediate|basic|elementary|"
-    r"beginner|conversational|professional|mother\s+tongue|bilingual|"
+    r"beginner|conversational|professional|mother\s+tongue|bilingual|expert|"
     r"c[12]|b[12]|a[12])\b",
     re.I,
 )
@@ -573,11 +688,28 @@ def parse_languages(section_text: str, full_text: str) -> list[dict]:
             seen.add(key)
             result.append({"language": lang.title(), "proficiency": prof})
 
-    for line in split_lines(section_text or ""):
-        m = re.match(r"([A-Za-z\s]+?)(?:\s*[-–:]\s*|\s+)(.+)?$", line)
+    # FIX: handle inline format "Arabic - Native  English - Expert  French - Conversational"
+    source_text = section_text or ""
+
+    # Insert newlines before known language names that appear mid-line after whitespace
+    lang_pattern = r"(?<!\A)\s{2,}(?=" + "|".join(re.escape(l) for l in sorted(_SPOKEN_LANGUAGES, key=len, reverse=True)) + r")\b"
+    source_text = re.sub(lang_pattern, "\n", source_text, flags=re.I)
+    # Also split on pipe separators
+    source_text = source_text.replace("|", "\n")
+
+    lines_to_process = split_lines(source_text)
+
+    for line in lines_to_process:
+        m = re.match(r"([A-Za-z\s]+?)(?:\s*[-–:]|\s{2,})(.+)?$", line)
         if m and m.group(1).strip().lower() in _SPOKEN_LANGUAGES:
             prof_m = _PROFICIENCY_RE.search(line)
             _add(m.group(1).strip(), prof_m.group() if prof_m else None)
+        else:
+            # Try scanning each word on the line for a language name
+            for word in re.split(r"[\s,;]+", line):
+                if word.lower() in _SPOKEN_LANGUAGES and word.lower() not in seen:
+                    prof_m = _PROFICIENCY_RE.search(line)
+                    _add(word, prof_m.group() if prof_m else None)
 
     for lang in _SPOKEN_LANGUAGES:
         if lang not in seen:
@@ -599,10 +731,10 @@ def parse_cv(text: str) -> dict:
     text = normalize_pdf_text(text)
     sections = split_sections(text)
 
-    work_sec  = find_section(sections, "experience", "employment", "career", "professional")
+    work_sec  = find_section(sections, "experience", "employment", "career", "professional", "scholarships")
     edu_sec   = find_section(sections, "education", "academic", "qualification")
     skill_sec = find_section(sections, "skill", "competen", "technolog")
-    cert_sec  = find_section(sections, "certif", "license")
+    cert_sec  = find_section(sections, "certif", "license", "courses")
     lang_sec  = find_section(sections, "language")
 
     return {
