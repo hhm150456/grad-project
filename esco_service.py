@@ -49,7 +49,7 @@ def _load_esco_data() -> pd.DataFrame:
             "OccupationUri",
             "OccupationLabel",
             "MappedSkills"
-        FROM EscoSkillsWithMapped
+        FROM "EscoSkillsWithMapped"
         WHERE "OccupationLabel" IS NOT NULL
           AND "MappedSkills"   IS NOT NULL
     """)
@@ -170,7 +170,7 @@ def normalize_job(job_title: str, job_skills: list[str]) -> dict:
 
     return {
         "normalized_title": title_match["preferred_label"],
-        "occupation_uri":   title_match["OccupationUri"],
+        "occupation_uri":   title_match["occupation_uri"],
         "confidence":       compute_final_score(title_match["score"], skill_matches),
         "title_score":      title_match["score"],
         "matched_skills":   skill_matches,
