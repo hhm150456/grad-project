@@ -795,6 +795,7 @@ async def enhance_resume(
         model=model_name,
         base_url="https://openrouter.ai/api/v1",
         api_key=os.environ["CV_API_KEY"],
+        max_tokens=3000,
         default_headers={
             "HTTP-Referer": "https:localhost:8000",
             "X-Title": "Joblin",
