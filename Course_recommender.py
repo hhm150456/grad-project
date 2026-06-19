@@ -63,17 +63,26 @@ class CourseRecommender:
     """
 
     _QUERY = """
+        WITH PostSkills AS (
+            -- Group all skills into a PostgreSQL array for each OfferingPost
+            SELECT
+                ops."OfferingPostsId",
+                ARRAY_AGG(s."Name") AS skills_array
+            FROM "OfferingPostSkills" ops
+            JOIN "Skills" s ON ops."ProvidedSkillsId" = s."Id"
+            GROUP BY ops."OfferingPostsId"
+        )
         SELECT
-            "Title" AS title,
-            "EnrollmentUrl" AS url,
-            "Description" AS description,
-            string_to_array("ProvidedSkills", ',') AS skills,
-            "DifficultyLevel" AS level,
+            op."Title" AS title,
+            op."EnrollmentUrl" AS url,
+            op."Description" AS description,
+            ps.skills_array AS skills,
+            op."DifficultyLevel" AS level,
             ROUND(
                 (
                     CARDINALITY(
                         ARRAY(
-                            SELECT UNNEST(string_to_array("ProvidedSkills", ','))
+                            SELECT UNNEST(ps.skills_array)
                             INTERSECT
                             SELECT UNNEST(%(skills)s::text[])
                         )
@@ -81,8 +90,10 @@ class CourseRecommender:
                 )::numeric,
                 4
             ) AS match_score
-        FROM "OfferingPosts"
-        WHERE string_to_array("ProvidedSkills", ',') && %(skills)s::text[]
+        FROM "OfferingPosts" op
+        JOIN PostSkills ps ON op."Id" = ps."OfferingPostsId"
+        -- Filter only posts that have at least one overlapping skill
+        WHERE ps.skills_array && %(skills)s::text[]
         ORDER BY match_score DESC
         LIMIT %(top_n)s;
     """
