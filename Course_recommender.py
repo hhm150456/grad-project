@@ -65,15 +65,15 @@ class CourseRecommender:
     _QUERY = """
         SELECT
             "Title" AS title,
-            "URL" AS url,
+            "EnrollmentUrl" AS url,
             "Description" AS description,
-            string_to_array("Skills", ',') AS skills,
-            "Level" AS level,
+            string_to_array("ProvidedSkills", ',') AS skills,
+            "DifficultyLevel" AS level,
             ROUND(
                 (
                     CARDINALITY(
                         ARRAY(
-                            SELECT UNNEST(string_to_array("Skills", ','))
+                            SELECT UNNEST(string_to_array("ProvidedSkills", ','))
                             INTERSECT
                             SELECT UNNEST(%(skills)s::text[])
                         )
@@ -82,7 +82,7 @@ class CourseRecommender:
                 4
             ) AS match_score
         FROM "OfferingPosts"
-        WHERE string_to_array("Skills", ',') && %(skills)s::text[]
+        WHERE string_to_array("ProvidedSkills", ',') && %(skills)s::text[]
         ORDER BY match_score DESC
         LIMIT %(top_n)s;
     """
