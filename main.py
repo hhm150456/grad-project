@@ -701,7 +701,7 @@ def skill_gap(body: SkillGapRequest) -> SkillGapResponse:
 def recommend_courses(body: SkillGapRequest, top_n: int = 6):
     """
     Given a candidate's skills, return the top matching courses ranked by
-    skill overlap and rating.
+    skill overlap.
 
     Reuses `SkillGapRequest.candidate_skills` — no new model needed.
 
@@ -727,14 +727,11 @@ def recommend_courses(body: SkillGapRequest, top_n: int = 6):
         "total": len(courses),
         "courses": [
             {
-                "id": c.id,
                 "title": c.title,
+                "url": c.url,
                 "description": c.description,
                 "skills": c.skills,
-                "rating": c.rating,
                 "level": c.level,
-                "duration_hours": c.duration_hours,
-                "instructor": c.instructor,
                 "match_score": c.match_score,
             }
             for c in courses

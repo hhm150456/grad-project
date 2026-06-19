@@ -1,0 +1,101 @@
+skill_a,skill_b,is_match,category
+Python,python,1,exact_match
+JavaScript,javascript ,1,exact_match
+SQL,SQL,1,exact_match
+Docker,docker,1,exact_match
+Kubernetes,Kubernetes,1,exact_match
+React,React,1,exact_match
+Java,Java,1,exact_match
+Git,git,1,exact_match
+Linux, Linux,1,exact_match
+Redis,redis,1,exact_match
+GraphQL,GraphQL,1,exact_match
+Terraform,terraform,1,exact_match
+ML,Machine Learning,1,abbreviation
+AI,Artificial Intelligence,1,abbreviation
+NLP,Natural Language Processing,1,abbreviation
+CI/CD,Continuous Integration Continuous Deployment,1,abbreviation
+DB,Database,1,abbreviation
+UI,User Interface,1,abbreviation
+UX,User Experience,1,abbreviation
+QA,Quality Assurance,1,abbreviation
+AWS,Amazon Web Services,1,abbreviation
+GCP,Google Cloud Platform,1,abbreviation
+API,Application Programming Interface,1,abbreviation
+OOP,Object-Oriented Programming,1,abbreviation
+DevOps,Development Operations,1,abbreviation
+ETL,Extract Transform Load,1,abbreviation
+SaaS,Software as a Service,1,abbreviation
+IaC,Infrastructure as Code,1,abbreviation
+React,React.js,1,substring_true
+Node,Node.js,1,substring_true
+Vue,Vue.js,1,substring_true
+Python,Python 3,1,substring_true
+TypeScript,TypeScript 5,1,substring_true
+Angular,AngularJS,1,substring_true
+MongoDB,MongoDB Atlas,1,substring_true
+PostgreSQL,PostgreSQL 14,1,substring_true
+Java,Java EE,1,substring_true
+Swift,SwiftUI,1,substring_true
+Kafka,Apache Kafka,1,substring_true
+Spark,Apache Spark,1,substring_true
+Next,Next.js,1,substring_true
+Express,Express.js,1,substring_true
+Java,JavaScript,0,substring_false_positive
+Go,Google Cloud,0,substring_false_positive
+R,React,0,substring_false_positive
+Spring,Spring Boot,1,substring_true
+Hadoop,Hadoop Ecosystem,1,substring_true
+C,C++,0,tricky_near_miss
+C,C#,0,tricky_near_miss
+C++,C#,0,tricky_near_miss
+SQL,NoSQL,0,tricky_near_miss
+Ruby,Ruby on Rails,1,substring_true
+Less,SaaS,0,tricky_near_miss
+React Native,React,1,substring_true
+Vue,Vuex,0,tricky_near_miss
+Kuberentes,Kubernetes,1,misspelling
+Pyton,Python,1,misspelling
+Jvascript,JavaScript,1,misspelling
+Tensorflow,TensorFlow,1,misspelling_case
+Dokcer,Docker,1,misspelling
+Postgre,Postgres,1,misspelling
+Jenkis,Jenkins,1,misspelling
+Anguar,Angular,1,misspelling
+Postgres,PostgreSQL,1,synonym
+Scrum,Agile,1,synonym
+Git,Version Control,1,synonym
+Jenkins,CI/CD Tools,1,synonym
+Excel,Google Sheets,1,synonym
+Linux,Unix,1,synonym
+Frontend Development,Front-End Development,1,synonym
+Backend Development,Back-End Development,1,synonym
+ML Engineering,Machine Learning Engineering,1,synonym
+Continuous Deployment,CD,1,abbreviation
+Figma,Sketch,0,unrelated
+Photoshop,Excel,0,unrelated
+SQL,Photoshop,0,unrelated
+Docker,Salesforce,0,unrelated
+Kubernetes,Adobe Illustrator,0,unrelated
+HTML,CSS,0,unrelated_related_domain
+REST API,GraphQL,0,unrelated_related_domain
+PyTorch,TensorFlow,0,unrelated_same_domain
+MySQL,PostgreSQL,0,unrelated_same_domain
+Objective-C,Swift,0,unrelated_same_domain
+Photoshop,Illustrator,0,unrelated_same_domain
+Tableau,Power BI,0,unrelated_same_domain
+Jira,Trello,0,unrelated_same_domain
+Slack,Microsoft Teams,0,unrelated_same_domain
+AWS,Azure,0,unrelated_same_domain
+Java,Kotlin,0,unrelated_same_domain
+React,Angular,0,unrelated_same_domain
+Docker,Vagrant,0,unrelated_same_domain
+Pandas,NumPy,0,unrelated_same_domain
+Selenium,Cypress,0,unrelated_same_domain
+Excel,SQL,0,unrelated
+Photoshop,Figma,0,unrelated_same_domain
+Recruiting,Python,0,unrelated
+Marketing,DevOps,0,unrelated
+Sales,Kubernetes,0,unrelated
+Accounting,React,0,unrelated
+Customer Service,Docker,0,unrelated

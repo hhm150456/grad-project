@@ -1,0 +1,101 @@
+skill_a,skill_b,category,gold,exact_pred,fuzzy_pred,fuzzy_score,exact_correct,fuzzy_correct
+Python,python,exact_match,1,1,1,1.0,1,1
+JavaScript,javascript ,exact_match,1,1,1,1.0,1,1
+SQL,SQL,exact_match,1,1,1,1.0,1,1
+Docker,docker,exact_match,1,1,1,1.0,1,1
+Kubernetes,Kubernetes,exact_match,1,1,1,1.0,1,1
+React,React,exact_match,1,1,1,1.0,1,1
+Java,Java,exact_match,1,1,1,1.0,1,1
+Git,git,exact_match,1,1,1,1.0,1,1
+Linux, Linux,exact_match,1,1,1,1.0,1,1
+Redis,redis,exact_match,1,1,1,1.0,1,1
+GraphQL,GraphQL,exact_match,1,1,1,1.0,1,1
+Terraform,terraform,exact_match,1,1,1,1.0,1,1
+ML,Machine Learning,abbreviation,1,0,0,0.222,0,0
+AI,Artificial Intelligence,abbreviation,1,0,0,0.16,0,0
+NLP,Natural Language Processing,abbreviation,1,0,0,0.2,0,0
+CI/CD,Continuous Integration Continuous Deployment,abbreviation,1,0,0,0.163,0,0
+DB,Database,abbreviation,1,0,0,0.4,0,0
+UI,User Interface,abbreviation,1,0,0,0.25,0,0
+UX,User Experience,abbreviation,1,0,0,0.235,0,0
+QA,Quality Assurance,abbreviation,1,0,0,0.211,0,0
+AWS,Amazon Web Services,abbreviation,1,0,0,0.273,0,0
+GCP,Google Cloud Platform,abbreviation,1,0,0,0.25,0,0
+API,Application Programming Interface,abbreviation,1,0,0,0.167,0,0
+OOP,Object-Oriented Programming,abbreviation,1,0,0,0.2,0,0
+DevOps,Development Operations,abbreviation,1,0,0,0.429,0,0
+ETL,Extract Transform Load,abbreviation,1,0,0,0.24,0,0
+SaaS,Software as a Service,abbreviation,1,0,0,0.32,0,0
+IaC,Infrastructure as Code,abbreviation,1,0,0,0.24,0,0
+React,React.js,substring_true,1,0,1,0.9,0,1
+Node,Node.js,substring_true,1,0,1,0.9,0,1
+Vue,Vue.js,substring_true,1,0,1,0.9,0,1
+Python,Python 3,substring_true,1,0,1,0.9,0,1
+TypeScript,TypeScript 5,substring_true,1,0,1,0.9,0,1
+Angular,AngularJS,substring_true,1,0,1,0.9,0,1
+MongoDB,MongoDB Atlas,substring_true,1,0,1,0.9,0,1
+PostgreSQL,PostgreSQL 14,substring_true,1,0,1,0.9,0,1
+Java,Java EE,substring_true,1,0,1,0.9,0,1
+Swift,SwiftUI,substring_true,1,0,1,0.9,0,1
+Kafka,Apache Kafka,substring_true,1,0,1,0.9,0,1
+Spark,Apache Spark,substring_true,1,0,1,0.9,0,1
+Next,Next.js,substring_true,1,0,1,0.9,0,1
+Express,Express.js,substring_true,1,0,1,0.9,0,1
+Java,JavaScript,substring_false_positive,0,0,1,0.9,1,0
+Go,Google Cloud,substring_false_positive,0,0,1,0.9,1,0
+R,React,substring_false_positive,0,0,1,0.9,1,0
+Spring,Spring Boot,substring_true,1,0,1,0.9,0,1
+Hadoop,Hadoop Ecosystem,substring_true,1,0,1,0.9,0,1
+C,C++,tricky_near_miss,0,0,1,0.9,1,0
+C,C#,tricky_near_miss,0,0,1,0.9,1,0
+C++,C#,tricky_near_miss,0,0,0,0.4,1,1
+SQL,NoSQL,tricky_near_miss,0,0,1,0.9,1,0
+Ruby,Ruby on Rails,substring_true,1,0,1,0.9,0,1
+Less,SaaS,tricky_near_miss,0,0,0,0.5,1,1
+React Native,React,substring_true,1,0,1,0.9,0,1
+Vue,Vuex,tricky_near_miss,0,0,1,0.9,1,0
+Kuberentes,Kubernetes,misspelling,1,0,1,0.9,0,1
+Pyton,Python,misspelling,1,0,1,0.909,0,1
+Jvascript,JavaScript,misspelling,1,0,1,0.947,0,1
+Tensorflow,TensorFlow,misspelling_case,1,1,1,1.0,1,1
+Dokcer,Docker,misspelling,1,0,1,0.833,0,1
+Postgre,Postgres,misspelling,1,0,1,0.9,0,1
+Jenkis,Jenkins,misspelling,1,0,1,0.923,0,1
+Anguar,Angular,misspelling,1,0,1,0.923,0,1
+Postgres,PostgreSQL,synonym,1,0,1,0.9,0,1
+Scrum,Agile,synonym,1,0,0,0.0,0,0
+Git,Version Control,synonym,1,0,0,0.222,0,0
+Jenkins,CI/CD Tools,synonym,1,0,0,0.222,0,0
+Excel,Google Sheets,synonym,1,0,0,0.222,0,0
+Linux,Unix,synonym,1,0,0,0.444,0,0
+Frontend Development,Front-End Development,synonym,1,0,1,0.976,0,1
+Backend Development,Back-End Development,synonym,1,0,1,0.974,0,1
+ML Engineering,Machine Learning Engineering,synonym,1,0,0,0.667,0,0
+Continuous Deployment,CD,abbreviation,1,0,0,0.174,0,0
+Figma,Sketch,unrelated,0,0,0,0.0,1,1
+Photoshop,Excel,unrelated,0,0,0,0.0,1,1
+SQL,Photoshop,unrelated,0,0,0,0.167,1,1
+Docker,Salesforce,unrelated,0,0,0,0.375,1,1
+Kubernetes,Adobe Illustrator,unrelated,0,0,0,0.296,1,1
+HTML,CSS,unrelated_related_domain,0,0,0,0.0,1,1
+REST API,GraphQL,unrelated_related_domain,0,0,0,0.4,1,1
+PyTorch,TensorFlow,unrelated_same_domain,0,0,0,0.353,1,1
+MySQL,PostgreSQL,unrelated_same_domain,0,0,0,0.4,1,1
+Objective-C,Swift,unrelated_same_domain,0,0,0,0.125,1,1
+Photoshop,Illustrator,unrelated_same_domain,0,0,0,0.2,1,1
+Tableau,Power BI,unrelated_same_domain,0,0,0,0.133,1,1
+Jira,Trello,unrelated_same_domain,0,0,0,0.2,1,1
+Slack,Microsoft Teams,unrelated_same_domain,0,0,0,0.2,1,1
+AWS,Azure,unrelated_same_domain,0,0,0,0.25,1,1
+Java,Kotlin,unrelated_same_domain,0,0,0,0.0,1,1
+React,Angular,unrelated_same_domain,0,0,0,0.167,1,1
+Docker,Vagrant,unrelated_same_domain,0,0,0,0.154,1,1
+Pandas,NumPy,unrelated_same_domain,0,0,0,0.182,1,1
+Selenium,Cypress,unrelated_same_domain,0,0,0,0.133,1,1
+Excel,SQL,unrelated,0,0,0,0.25,1,1
+Photoshop,Figma,unrelated_same_domain,0,0,0,0.0,1,1
+Recruiting,Python,unrelated,0,0,0,0.25,1,1
+Marketing,DevOps,unrelated,0,0,0,0.133,1,1
+Sales,Kubernetes,unrelated,0,0,0,0.267,1,1
+Accounting,React,unrelated,0,0,0,0.4,1,1
+Customer Service,Docker,unrelated,0,0,0,0.273,1,1

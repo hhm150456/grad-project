@@ -4,8 +4,7 @@ course_recommender.recommender
 Recommends courses from a PostgreSQL database based on a list of skills.
 
 Scoring formula (per course):
-    score = (matching_skills / total_requested_skills) * 0.70
-          + (rating / 5.0)                             * 0.30
+    score = matching_skills / total_requested_skills
 
 Usage
 -----
@@ -30,14 +29,11 @@ import psycopg2.extras
 
 @dataclass
 class Course:
-    id: int
     title: str
+    url: str
     description: str
     skills: List[str]
-    rating: float
     level: str
-    duration_hours: int
-    instructor: str
     match_score: float
 
     def __str__(self) -> str:
@@ -46,9 +42,9 @@ class Course:
         bar = "█" * filled + "░" * (bar_width - filled)
         pct = round(self.match_score * 100)
         return (
-            f"[{pct:3d}%] {bar}  ★ {self.rating:.1f}  "
-            f"{self.level:<14}  {self.duration_hours:3d}h  "
-            f"{self.title}  (by {self.instructor})"
+            f"[{pct:3d}%] {bar}  "
+            f"{self.level:<14}  "
+            f"{self.title}  ({self.url})"
         )
 
 
@@ -56,7 +52,7 @@ class Course:
 
 class CourseRecommender:
     """
-    Recommends courses stored in a PostgreSQL ``courses`` table.
+    Recommends courses stored in a PostgreSQL ``OfferingPosts`` table.
 
     Parameters
     ----------
@@ -68,32 +64,26 @@ class CourseRecommender:
 
     _QUERY = """
         SELECT
-            id,
-            title,
-            description,
-            string_to_array(skills, ',') AS skills,
-            rating::float,
-            level,
-            content_duration AS duration_hours,
-            NULL::text AS instructor,
+            "Title" AS title,
+            "URL" AS url,
+            "Description" AS description,
+            string_to_array("Skills", ',') AS skills,
+            "Level" AS level,
             ROUND(
                 (
-                    (
-                        CARDINALITY(
-                            ARRAY(
-                                SELECT UNNEST(string_to_array(skills, ','))
-                                INTERSECT
-                                SELECT UNNEST(%(skills)s::text[])
-                            )
-                        )::float / %(n_skills)s
-                    ) * 0.70
-                    + (rating::float / 5.0) * 0.30
+                    CARDINALITY(
+                        ARRAY(
+                            SELECT UNNEST(string_to_array("Skills", ','))
+                            INTERSECT
+                            SELECT UNNEST(%(skills)s::text[])
+                        )
+                    )::float / %(n_skills)s
                 )::numeric,
                 4
             ) AS match_score
-        FROM courses
-        WHERE string_to_array(skills, ',') && %(skills)s::text[]
-        ORDER BY match_score DESC, rating DESC
+        FROM "OfferingPosts"
+        WHERE string_to_array("Skills", ',') && %(skills)s::text[]
+        ORDER BY match_score DESC
         LIMIT %(top_n)s;
     """
 
@@ -179,14 +169,11 @@ class CourseRecommender:
 
         return [
             Course(
-                id=row["id"],
                 title=row["title"],
+                url=row["url"],
                 description=row["description"],
                 skills=list(row["skills"]),
-                rating=float(row["rating"]),
                 level=row["level"],
-                duration_hours=int(row["duration_hours"] or 0),
-                instructor=row["instructor"] or "",
                 match_score=float(row["match_score"]),
             )
             for row in rows
