@@ -67,7 +67,7 @@ class CourseRecommender:
             -- Group all skills into a PostgreSQL array for each OfferingPost
             SELECT
                 ops."OfferingPostsId",
-                ARRAY_AGG(s."Name")::text[] AS skills_array
+                ARRAY_AGG(LOWER(s."Name"))::text[] AS skills_array
             FROM "OfferingPostSkills" ops
             JOIN "Skills" s ON ops."ProvidedSkillsId" = s."Id"
             GROUP BY ops."OfferingPostsId"
